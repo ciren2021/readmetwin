@@ -1,0 +1,6 @@
+include README.md README.zh-CN.md CONTRIBUTING.md LICENSE
+recursive-include examples *.md
+recursive-include tests *.py
+include .github/workflows/tests.yml
+include .gitignore
+recursive-include scripts *.py
