@@ -154,6 +154,13 @@ introductory content; uncovered content produces a warning.
   links are outside this phase's supported syntax. This is not a translation
   quality, code correctness, or security scanner. It does not compare prose or
   prove documents equivalent.
+- **Nesting coverage:** the parser retains its block nesting budget of 20.
+  Quote/list containers that reach the budget emit `PARSER_LIMIT_REACHED` once
+  per section ID (or unpaired area) per file. Lists can consume multiple levels
+  per item; this is a parser budget, not a count of heading levels. Content may
+  have been skipped, so even identical documents warn at this boundary. Default
+  mode still exits 0 unless there are errors; strict mode exits 1 for this
+  warning. Quotation characters inside literal code examples do not count.
 
 <!-- readmetwin:section diagnostics -->
 ## Diagnostic codes
@@ -167,6 +174,7 @@ introductory content; uncovered content produces a warning.
 | NO_SECTION_IDS | warning | No paired sections; comparison skipped |
 | UNCOVERED_CONTENT | warning | Content lies outside paired sections |
 | HTML_NOT_CHECKED | warning | Raw HTML is not compared |
+| PARSER_LIMIT_REACHED | warning | Block nesting budget reached; comparison may be incomplete |
 | INSTALL_COMMAND_DIFFERENCE | warning | Recognized command sets differ |
 | CODE_BLOCK_DIFFERENCE | warning | Code block multisets differ |
 | LINK_TARGET_DIFFERENCE | warning | Markdown link/image target sets differ |

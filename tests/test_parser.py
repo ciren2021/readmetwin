@@ -141,3 +141,52 @@ pipeline install twin
 ```
 ''')
     assert doc.sections[0].commands == []
+
+
+@pytest.mark.parametrize("depth", [19, 20, 21])
+@pytest.mark.parametrize("body", ["[Docs](https://example.org)", "```python\nprint(1)\n```"])
+def test_block_nesting_limit_reports_incomplete_coverage(depth, body):
+    quoted = "\n".join("> " * depth + line for line in body.splitlines())
+    doc = parse("<!-- readmetwin:section s -->\n# Section\n" + quoted + "\n")
+    if depth < 20:
+        assert doc.diagnostics == []
+        assert doc.sections[0].links or doc.sections[0].blocks
+    else:
+        assert [(d.code, d.severity, d.line, d.section_id) for d in doc.diagnostics] == [
+            ("PARSER_LIMIT_REACHED", "warning", 3, "s"),
+        ]
+
+
+@pytest.mark.parametrize("body", [
+    "```md\n" + "> " * 30 + "[Docs](docs.md)\n```",
+    "    " + "> " * 30 + "[Docs](docs.md)",
+    "Use `" + "> " * 30 + "[Docs](docs.md)` as literal text.",
+])
+def test_literal_nesting_examples_do_not_trigger_limit_warnings(body):
+    doc = parse("<!-- readmetwin:section s -->\n# Section\n" + body + "\n")
+    assert doc.diagnostics == []
+
+
+@pytest.mark.parametrize("body", [
+    "\n".join("  " * depth + "- item" for depth in range(20)),
+    "\n".join("   " * depth + "1. item" for depth in range(20)),
+    "> - " * 10 + "[Docs](docs.md)",
+])
+def test_list_and_mixed_containers_also_report_parser_limit(body):
+    doc = parse("<!-- readmetwin:section s -->\n# Section\n" + body + "\n")
+    assert [d.code for d in doc.diagnostics] == ["PARSER_LIMIT_REACHED"]
+
+
+def test_parser_limit_is_reported_once_per_section():
+    deep = "> " * 21 + "[Docs](docs.md)\n\n"
+    text = ("<!-- readmetwin:section a -->\n# A\n" + deep + deep
+            + "<!-- readmetwin:section b -->\n# B\n" + deep)
+    assert [d.section_id for d in parse(text).diagnostics] == ["a", "b"]
+
+
+def test_parser_limit_outside_sections_is_not_silently_ignored():
+    doc = parse("> " * 20 + "[Docs](docs.md)\n")
+    assert {d.code for d in doc.diagnostics} == {"PARSER_LIMIT_REACHED", "NO_SECTION_IDS"}
+    limit = next(d for d in doc.diagnostics if d.code == "PARSER_LIMIT_REACHED")
+    assert limit.line == 1
+    assert limit.section_id is None

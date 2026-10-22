@@ -137,6 +137,12 @@ python -m pip install example-package==1.0
   不比较其中的链接和代码。解析以 CommonMark 为基准；GFM 表格、MDX、文件包含及未定义的
   引用式链接不属于本阶段支持的语法。该工具不检查翻译质量、代码正确性或安全漏洞，
   不比较自然语言正文，也不证明文档等价。
+- **嵌套覆盖范围：** 保留解析器 20 层的块级嵌套预算。引用或列表容器触及预算时，
+  产生 `PARSER_LIMIT_REACHED`；每个文件的每个章节 ID（或未配对区域）最多报告一次。
+  列表项可能消耗多层预算，因此这不等于标题层级或列表层数。
+  部分内容可能被跳过，即使两份文档相同也会在此边界发出警告。
+  默认模式在没有错误时仍退出 0，严格模式遇到此警告退出 1。
+  字面代码示例内的引用符号不计入嵌套深度。
 
 <!-- readmetwin:section diagnostics -->
 ## 诊断编号
@@ -150,6 +156,7 @@ python -m pip install example-package==1.0
 | NO_SECTION_IDS | warning | 没有配对章节，跳过比较 |
 | UNCOVERED_CONTENT | warning | 内容位于配对章节之外 |
 | HTML_NOT_CHECKED | warning | 原始 HTML 未参与比较 |
+| PARSER_LIMIT_REACHED | warning | 块级嵌套触及预算，比较可能不完整 |
 | INSTALL_COMMAND_DIFFERENCE | warning | 已识别安装命令的集合不同 |
 | CODE_BLOCK_DIFFERENCE | warning | 代码块多重集合不同 |
 | LINK_TARGET_DIFFERENCE | warning | Markdown 链接或图片目标集合不同 |

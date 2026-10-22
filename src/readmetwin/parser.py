@@ -8,6 +8,7 @@ from .models import CodeBlock, Diagnostic, Document, Section, Value
 
 _MARKER = re.compile(r"<!--\s*readmetwin:section\s+([A-Za-z][A-Za-z0-9._-]{0,63})\s*-->")
 _DIRECTIVE = re.compile(r"<!--\s*readmetwin:section\b")
+_BLOCK_CONTAINERS = {"blockquote_open", "bullet_list_open", "ordered_list_open", "list_item_open"}
 _SHELL_LANGUAGES = {"", "sh", "bash", "zsh", "shell", "console", "shell-session", "text", "powershell", "ps1"}
 _INSTALL = re.compile(
     r"^(?:sudo\s+)?(?:"
@@ -86,6 +87,7 @@ def parse_document(text: str, path: str) -> Document:
     active: list[Section] = []
     seen: dict[str, int] = {}
     uncovered: int | None = None
+    limit_reported: set[str | None] = set()
     for index, token in enumerate(tokens):
         if token.type == "heading_open" and token.level == 0:
             depth = int(token.tag[1:])
@@ -104,6 +106,21 @@ def parse_document(text: str, path: str) -> Document:
                     seen[section_id] = section.line
                 doc.sections.append(section)
                 active.append(section)
+
+        # Container token levels reflect the block parser's nesting budget.
+        # Paragraph/fence contents can legitimately reach this level without
+        # losing block parsing, so do not treat every deep token as a limit hit.
+        section_id = active[-1].id if active else None
+        if (token.type in _BLOCK_CONTAINERS
+                and token.level + 1 >= md.options["maxNesting"]
+                and section_id not in limit_reported):
+            limit_reported.add(section_id)
+            doc.diagnostics.append(Diagnostic(
+                "PARSER_LIMIT_REACHED", "warning",
+                f"Markdown block nesting reaches the parser limit ({md.options['maxNesting']}); "
+                "some content may not have been checked.",
+                path, token.map[0] + 1, section_id,
+            ))
 
         if index in directive_tokens:
             continue

@@ -76,6 +76,23 @@ def main() -> None:
                     or payload["exit_code"] != expected):
                 raise RuntimeError(f"Unexpected difference report: {payload}")
 
+        deep_paths = [fixtures / "deep-left.md", fixtures / "deep-right.md"]
+        deep_originals = []
+        for path, target in zip(deep_paths, ("v1", "v2")):
+            text = header + "> " * 20 + f"[Docs](https://example.org/{target})\n"
+            path.write_text(text, encoding="utf-8", newline="\n")
+            deep_originals.append(path.read_bytes())
+        deep_arguments = [*isolated, "-m", "readmetwin", *map(str, deep_paths), "--format", "json"]
+        for strict, expected in ((False, 0), (True, 1)):
+            payload = json.loads(run(deep_arguments + (["--strict"] if strict else []),
+                                     expected=expected).stdout)
+            if (payload["summary"] != {"errors": 0, "warnings": 2}
+                    or payload["exit_code"] != expected
+                    or {issue["code"] for issue in payload["diagnostics"]} != {"PARSER_LIMIT_REACHED"}):
+                raise RuntimeError(f"Installed wheel silently skipped nested content: {payload}")
+        if [path.read_bytes() for path in deep_paths] != deep_originals:
+            raise RuntimeError("Checker modified nested input")
+
         right.unlink()
         payload = json.loads(run(arguments, expected=2).stdout)
         if payload["diagnostics"][0]["code"] != "INPUT_ERROR":
@@ -83,7 +100,7 @@ def main() -> None:
         if left.read_bytes() != content.encode("utf-8"):
             raise RuntimeError("Checker modified input")
     print("Wheel install passed: isolated import, both entry points, version, paths with spaces, "
-          "translated headings, JSON, warning/strict/input exit codes, unchanged input.")
+          "translated headings, JSON, nesting coverage, warning/strict/input exit codes, unchanged input.")
 
 
 if __name__ == "__main__":

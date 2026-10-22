@@ -57,6 +57,36 @@ def test_unmarked_documents_warn_instead_of_claiming_full_coverage(tmp_path, cap
     assert "NO_SECTION_IDS" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("strict,expected", [(False, 0), (True, 1)])
+@pytest.mark.parametrize("output_format", ["text", "json"])
+def test_parser_limit_prevents_silent_strict_success(tmp_path, capsys, strict, expected, output_format):
+    prefix = "> " * 20
+    paths = pair(tmp_path, prefix + "[Docs](https://example.org/v1)",
+                 prefix + "[文档](https://example.org/v2)")
+    args = [*map(str, paths), "--format", output_format]
+    if strict:
+        args.append("--strict")
+    assert main(args) == expected
+    output = capsys.readouterr().out
+    if output_format == "json":
+        payload = json.loads(output)
+        assert payload["summary"] == {"errors": 0, "warnings": 2}
+        assert payload["exit_code"] == expected
+        assert {d["code"] for d in payload["diagnostics"]} == {"PARSER_LIMIT_REACHED"}
+        assert all(d["section_id"] == "install" and d["line"] == 3
+                   for d in payload["diagnostics"])
+    else:
+        assert "PARSER_LIMIT_REACHED" in output
+        assert "0 error(s), 2 warning(s)" in output
+
+
+def test_identical_documents_at_parser_limit_still_warn(tmp_path, capsys):
+    body = "> " * 20 + "[Docs](docs.md)"
+    paths = pair(tmp_path, body, body)
+    assert main([*map(str, paths), "--strict"]) == 1
+    assert "PARSER_LIMIT_REACHED" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("kind", ["missing", "directory", "encoding", "oversize"])
 def test_bad_inputs_produce_json_without_tracebacks(tmp_path, monkeypatch, capsys, kind):
     paths = pair(tmp_path)
